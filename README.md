@@ -15,12 +15,10 @@
 
 𓃼𓁈𓂃𓃤𓃰𓃨𓃀𓀀𓀀𓀀…
 
-```
-could challenge modern inspection systems.
-```
-No payloads.  
-No offensive mechanics.  
-Just **pure tradecraft analysis** and **defender empowerment**.
+
+- No payloads.  
+- No offensive mechanics.  
+- Just **pure tradecraft analysis** and **defender empowerment**.
 
 ---
 
