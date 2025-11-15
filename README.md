@@ -15,11 +15,9 @@
 
 𓃼𓁈𓂃𓃤𓃰𓃨𓃀𓀀𓀀𓀀…
 
-yaml
-Copy code
-
-—could challenge modern inspection systems.
-
+```
+could challenge modern inspection systems.
+```
 No payloads.  
 No offensive mechanics.  
 Just **pure tradecraft analysis** and **defender empowerment**.
