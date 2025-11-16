@@ -5,7 +5,7 @@
 #include <stdint.h>
 
 int main(int argc, char* argv[]) {
-    printf("=== Kemet Loader ===\n");
+    printf("=== Anubis Loader ===\n");
     
     FILE* file = fopen(argv[1], "rb");
     if (!file) {
